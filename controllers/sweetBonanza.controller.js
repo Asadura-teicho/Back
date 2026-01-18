@@ -1,8 +1,6 @@
 /**
- * Slot Game Controller (Multi-Game Support)
- * Handles slot game logic with configurable RTP model
- * Supports multiple game identifiers: sweet-bonanza, gates-of-olympus, etc.
- * Uses a single, unified spin engine and RTP configuration for all games
+ * Sweet Bonanza Game Controller
+ * Handles Sweet Bonanza slot game logic with configurable RTP model
  */
 
 const User = require('../models/User.model');
@@ -867,14 +865,14 @@ exports.playGame = asyncHandler(async (req, res) => {
       referenceType: 'game',
       referenceId: transaction[0]._id,
       gameOutcome: {
-        gameType: gameType,
+        gameType: 'sweet-bonanza',
         outcome: actualWin > 0 ? 'win' : 'loss',
         amount: Math.abs(netChange),
         percentage: percentageChange
       },
-      description: `${gameType === 'gates-of-olympus' ? 'Gates of Olympus' : 'Sweet Bonanza'} - Bet: ₺${bet.toFixed(2)}, Loss: ₺${actualLoss.toFixed(2)}, Win: ₺${actualWin.toFixed(2)}`,
+      description: `Sweet Bonanza - Bet: ₺${bet.toFixed(2)}, Loss: ₺${actualLoss.toFixed(2)}, Win: ₺${actualWin.toFixed(2)}`,
       metadata: {
-        gameType: gameType,
+        gameType: 'sweet-bonanza',
         betAmount: bet,
         actualLoss: actualLoss,
         winAmount: actualWin,
@@ -913,7 +911,7 @@ exports.playGame = asyncHandler(async (req, res) => {
     }
     
     // Log error for debugging
-    console.error(`Slot game (${gameType}) playGame error:`, error);
+    console.error('Sweet Bonanza playGame error:', error);
     
     // If it's already an AppError, re-throw it
     if (error instanceof AppError) {
@@ -935,19 +933,11 @@ exports.playGame = asyncHandler(async (req, res) => {
 
 /**
  * Get game history for user
- * GET /api/sweet-bonanza/history?gameId=xxx&limit=20&page=1
- * Supports filtering by gameId (optional - defaults to all slot games)
+ * GET /api/sweet-bonanza/history
  */
 exports.getGameHistory = asyncHandler(async (req, res) => {
   const userId = req.user.id;
-  let { limit = 20, page = 1, gameId } = req.query;
-
-  // Support multiple game identifiers (optional - if provided, filter by it)
-  const gameType = gameId || null; // null means show all slot games
-  const validGameIds = ['sweet-bonanza', 'gates-of-olympus'];
-  if (gameId && !validGameIds.includes(gameType)) {
-    throw new AppError(`Invalid game identifier: ${gameId}`, 400);
-  }
+  let { limit = 20, page = 1 } = req.query;
 
   // Validate and sanitize inputs
   limit = parseInt(limit);
@@ -960,22 +950,19 @@ exports.getGameHistory = asyncHandler(async (req, res) => {
   const MAX_LIMIT = 100;
   if (limit > MAX_LIMIT) limit = MAX_LIMIT;
 
-  // Build query - filter by gameType if provided, otherwise get all valid slot games
-  const query = {
+  const history = await BalanceHistory.find({
     user: userId,
-    ...(gameType 
-      ? { 'metadata.gameType': gameType }
-      : { 'metadata.gameType': { $in: validGameIds } }
-    )
-  };
-
-  const history = await BalanceHistory.find(query)
+    'metadata.gameType': 'sweet-bonanza'
+  })
     .sort({ createdAt: -1 })
     .limit(limit)
     .skip((page - 1) * limit)
     .lean(); // Use lean() for better performance
 
-  const total = await BalanceHistory.countDocuments(query);
+  const total = await BalanceHistory.countDocuments({
+    user: userId,
+    'metadata.gameType': 'sweet-bonanza'
+  });
 
   res.json({
     success: true,
